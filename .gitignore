@@ -1,6 +1,15 @@
 # Prerequisites
 *.d
 
+# build directories
+build/
+
+# vscode directories
+.vscode/
+
+# devcontainer directories
+.devcontainer/
+
 # Object files
 *.o
 *.ko
