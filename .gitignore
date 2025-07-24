@@ -4,6 +4,9 @@
 # build directories
 build/
 
+# managed components
+managed_components/
+
 # vscode directories
 .vscode/
 

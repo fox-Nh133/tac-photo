@@ -1,7 +1,6 @@
-set(LV_CONF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/lv_conf.h")
-
 idf_component_register(
-  SRCS "main.c" "storage_manager.c"
-  INCLUDE_DIRS ""
-  REQUIRES lvgl
-)
+    SRCS "waveshare_rgb_lcd_port.c" "main.c" "lvgl_port.c" "storage_manager.c"
+    INCLUDE_DIRS ".")
+
+idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)
+target_compile_options(${lvgl_lib} PRIVATE -Wno-format)

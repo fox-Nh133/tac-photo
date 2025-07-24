@@ -1,6 +1,7 @@
 #include "photo_display_fs.h"
 #include "ff.h"        // FatFS API
 #include "esp_log.h"
+#include "lvgl.h"
 
 static const char *TAG = "photo_fs";
 
