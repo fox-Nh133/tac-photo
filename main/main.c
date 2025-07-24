@@ -13,26 +13,41 @@
 
 #include "waveshare_rgb_lcd_port.h"
 
+# define SD_MOUNT_RETRIES 3
+# define SD_RETRY_DELAY_MS 1000
+
 void app_main()
 {
-    // wait a while after boot
-    vTaskDelay(pdMS_TO_TICKS(1000));
-    // mount SD card
-    esp_err_t ret = storage_mount_sdcard();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to mount SD card.");
-        return;
+    esp_err_t ret = ESP_FAIL;
+
+    for (int attempt = 1; attempt <= SD_MOUNT_RETRIES; ++attempt){
+        ESP_LOGI(TAG, "Attempting to mount sd card (attempt %d)", attempt);
+        ret = storage_mount_sdcard();
+        if (ret == ESP_OK) {
+            ESP_LOGI(TAG, "SD card mounted successfully on attempt %d", attempt);
+            // check jpeg file existence
+            const char *jpeg_path = "/sdcard/sample.jpg";
+            FILE *f = fopen(jpeg_path, "rb");
+            if (!f) {
+                ESP_LOGW(TAG, "JPEG file not found: %s", jpeg_path);
+                return;
+            }
+            fclose(f);
+            ESP_LOGI(TAG, "Found JPEG file: %s", jpeg_path);
+            break;
+        } else {
+            ESP_LOGW(TAG, "SD card mount failed on attempt %d", attempt);
+            if (attempt <SD_MOUNT_RETRIES){
+                vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
+            }
+        }
+
+        if (ret != ESP_OK){
+            ESP_LOGE(TAG, "SD card mount failed after %d attempts", attempt);
+        }
     }
 
-    // check jpeg file existence
-    const char *jpeg_path = "/sdcard/sample.jpg";
-    FILE *f = fopen(jpeg_path, "rb");
-    if (!f) {
-        ESP_LOGW(TAG, "JPEG file not found: %s", jpeg_path);
-        return;
-    }
-    fclose(f);
-    ESP_LOGI(TAG, "Found JPEG file: %s", jpeg_path);
+
 
     // waveshare_esp32_s3_rgb_lcd_init(); // Initialize the Waveshare ESP32-S3 RGB LCD 
     // // wavesahre_rgb_lcd_bl_on();  //Turn on the screen backlight 

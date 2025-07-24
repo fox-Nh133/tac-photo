@@ -66,7 +66,11 @@ esp_err_t storage_mount_sdcard()
 {
     esp_err_t ret;
     // Initialize I2C
-    ESP_ERROR_CHECK(i2c_master_init());
+    ret = i2c_master_init();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "i2c_master_init failed: %s", esp_err_to_name(ret));
+        return ESP_FAIL;
+    }
 
     // Control CH422G to pull down the CS pin of the SD
     uint8_t write_buf = 0x01;
