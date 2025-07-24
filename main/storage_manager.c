@@ -45,6 +45,11 @@ esp_err_t i2c_master_init(void)
 {
     int i2c_master_port = I2C_MASTER_NUM;
 
+    // remove installed i2c driver
+    if (i2c_driver_delete(i2c_master_port) != ESP_OK){
+        ESP_LOGW(TAG, "i2c_driver_delete failed, possibly not installed yet");
+    }
+
     // Configure I2C parameters
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,                // Set to master mode
@@ -55,11 +60,24 @@ esp_err_t i2c_master_init(void)
         .master.clk_speed = I2C_MASTER_FREQ_HZ, // Set I2C clock speed
     };
 
+    esp_err_t err;
+
     // Apply I2C configuration
-    i2c_param_config(i2c_master_port, &conf);
+    err = i2c_param_config(i2c_master_port, &conf);
+    if (err != ESP_OK) {
+        ESP_LOGE("i2c", "i2c_param_config failed: %s", esp_err_to_name(err));
+        return err;
+    }
 
     // Install I2C driver
-    return i2c_driver_install(i2c_master_port, conf.mode, I2C_MASTER_RX_BUF_DISABLE, I2C_MASTER_TX_BUF_DISABLE, 0);
+    err = i2c_driver_install(i2c_master_port, conf.mode,
+                             I2C_MASTER_RX_BUF_DISABLE,
+                             I2C_MASTER_TX_BUF_DISABLE, 0);
+    if (err != ESP_OK) {
+        ESP_LOGE("i2c", "i2c_driver_install failed: %s", esp_err_to_name(err));
+    }
+
+    return err;
 }
 
 esp_err_t storage_mount_sdcard()
@@ -74,9 +92,17 @@ esp_err_t storage_mount_sdcard()
 
     // Control CH422G to pull down the CS pin of the SD
     uint8_t write_buf = 0x01;
-    i2c_master_write_to_device(I2C_MASTER_NUM, 0x24, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    ret = i2c_master_write_to_device(I2C_MASTER_NUM, 0x24, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C write to 0x24 failed: %s", esp_err_to_name(ret));
+        return ESP_FAIL;
+    }
     write_buf = 0x0A;
-    i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    ret = i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2C write to 0x38 failed: %s", esp_err_to_name(ret));
+        return ESP_FAIL;
+    }
 
     // Options for mounting the filesystem
     esp_vfs_fat_sdmmc_mount_config_t mount_config = {
@@ -105,6 +131,12 @@ esp_err_t storage_mount_sdcard()
     // host.max_freq_khz = 10000; // Set maximum frequency to 10MHz
 
     // Initialize SPI bus
+    // at first, free the SPI bus in case it was already initialized
+    ret = spi_bus_free(host.slot);
+    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
+        ESP_LOGW(TAG, "spi_bus_free failed: %s", esp_err_to_name(ret));
+    }
+
     ret = spi_bus_initialize(host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
     if (ret != ESP_OK)
     {

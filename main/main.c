@@ -5,6 +5,7 @@
  */
 
 #include "freertos/FreeRTOS.h"
+#include "freertos/projdefs.h"
 #include "freertos/task.h"
 #include "esp_log.h"
 #include <stdio.h>
@@ -19,6 +20,7 @@
 void app_main()
 {
     esp_err_t ret = ESP_FAIL;
+    vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
 
     for (int attempt = 1; attempt <= SD_MOUNT_RETRIES; ++attempt){
         ESP_LOGI(TAG, "Attempting to mount sd card (attempt %d)", attempt);
