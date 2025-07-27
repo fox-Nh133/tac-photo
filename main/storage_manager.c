@@ -1,5 +1,10 @@
 #include "storage_manager.h"
+#include "driver/sdspi_host.h"
+#include "driver/spi_common.h"
+#include "esp_check.h"
+#include "i2c_bus_mgr.h"
 
+#include <stdint.h>
 #include <string.h>
 #include <sys/unistd.h>
 #include <sys/stat.h>
@@ -45,11 +50,6 @@ esp_err_t i2c_master_init(void)
 {
     int i2c_master_port = I2C_MASTER_NUM;
 
-    // remove installed i2c driver
-    if (i2c_driver_delete(i2c_master_port) != ESP_OK){
-        ESP_LOGW(TAG, "i2c_driver_delete failed, possibly not installed yet");
-    }
-
     // Configure I2C parameters
     i2c_config_t conf = {
         .mode = I2C_MODE_MASTER,                // Set to master mode
@@ -84,11 +84,13 @@ esp_err_t storage_mount_sdcard()
 {
     esp_err_t ret;
     // Initialize I2C
-    ret = i2c_master_init();
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "i2c_master_init failed: %s", esp_err_to_name(ret));
-        return ESP_FAIL;
-    }
+    ESP_RETURN_ON_ERROR(i2c_bus_acquire(), TAG, "I2C bus acquire failed");
+
+    // ret = i2c_master_init();
+    // if (ret != ESP_OK) {
+    //     ESP_LOGE(TAG, "i2c_master_init failed: %s", esp_err_to_name(ret));
+    //     return ESP_FAIL;
+    // }
 
     // Control CH422G to pull down the CS pin of the SD
     uint8_t write_buf = 0x01;
@@ -97,6 +99,7 @@ esp_err_t storage_mount_sdcard()
         ESP_LOGE(TAG, "I2C write to 0x24 failed: %s", esp_err_to_name(ret));
         return ESP_FAIL;
     }
+
     write_buf = 0x0A;
     ret = i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
     if (ret != ESP_OK) {
@@ -132,18 +135,10 @@ esp_err_t storage_mount_sdcard()
 
     // Initialize SPI bus
     // at first, free the SPI bus in case it was already initialized
-    ret = spi_bus_free(host.slot);
-    if (ret != ESP_OK && ret != ESP_ERR_INVALID_STATE) {
-        ESP_LOGW(TAG, "spi_bus_free failed: %s", esp_err_to_name(ret));
-    }
+    spi_bus_free(host.slot);
 
-    ret = spi_bus_initialize(host.slot, &bus_cfg, SDSPI_DEFAULT_DMA);
-    if (ret != ESP_OK)
-    {
-        // Failed to initialize bus
-        ESP_LOGW(TAG, "Failed to initialize bus.");
-        return ESP_FAIL;
-    }
+    ESP_GOTO_ON_ERROR(spi_bus_initialize(host.slot, &bus_cfg, SDSPI_DEFAULT_DMA),
+                      cleanup, TAG, "spi_bus_initialize failed");
 
     // Configure SD card slot
     sdspi_device_config_t slot_config = SDSPI_DEVICE_CONFIG_DEFAULT();
@@ -152,30 +147,21 @@ esp_err_t storage_mount_sdcard()
 
     // Mounting filesystem
     ESP_LOGW(TAG, "Mounting filesystem");
-    ret = esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &card);
+    ESP_GOTO_ON_ERROR(esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &card),
+                      cleanup, TAG, "esp_vfs_fat_sdspi_mount failed");
 
-    if (ret != ESP_OK)
-    {
-        if (ret == ESP_FAIL)
-        {
-            // Failed to mount filesystem
-            ESP_LOGW(TAG, "Failed to mount filesystem. "
-                          "If you want the card to be formatted, set the CONFIG_EXAMPLE_FORMAT_IF_MOUNT_FAILED menuconfig option.");
-        }
-        else
-        {
-            // Failed to initialize the card
-            ESP_LOGW(TAG, "Failed to initialize the card (%s). "
-                          "Make sure SD card lines have pull-up resistors in place.",
-                     esp_err_to_name(ret));
-        }
-        return ESP_FAIL;
-    }
 
     // Filesystem mounted
-    ESP_LOGW(TAG, "Filesystem mounted");
+    ESP_LOGI(TAG, "Filesystem mounted");
     is_mounted = true;
     return ESP_OK;
+
+cleanup:
+    i2c_bus_release();
+    if (ret != ESP_OK){
+        spi_bus_free(host.slot); // release if failed in initialization
+    }
+    return ret;
 }
 
 esp_err_t storage_unmount_sdcard(void){

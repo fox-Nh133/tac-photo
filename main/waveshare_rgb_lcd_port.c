@@ -5,6 +5,7 @@
  */
 
 #include "waveshare_rgb_lcd_port.h"
+#include "i2c_bus_mgr.h"
 
 // VSYNC event callback function
 IRAM_ATTR static bool rgb_lcd_on_vsync_event(esp_lcd_panel_handle_t panel, const esp_lcd_rgb_panel_event_data_t *edata, void *user_ctx)
@@ -71,7 +72,7 @@ void waveshare_esp32_s3_touch_reset()
 #endif
 
 // Initialize RGB LCD
-esp_err_t waveshare_esp32_s3_rgb_lcd_init()
+esp_err_t waveshare_esp32_s3_rgb_lcd_init(esp_lcd_panel_handle_t *out_panel)
 {
     ESP_LOGI(TAG, "Install RGB LCD panel driver"); // Log the start of the RGB LCD panel driver installation
     esp_lcd_panel_handle_t panel_handle = NULL; // Declare a handle for the LCD panel
@@ -134,7 +135,8 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init()
     esp_lcd_touch_handle_t tp_handle = NULL; // Declare a handle for the touch panel
 #if CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
     ESP_LOGI(TAG, "Initialize I2C bus"); // Log the initialization of the I2C bus
-    i2c_master_init(); // Initialize the I2C master
+    ESP_RETURN_ON_ERROR(i2c_bus_acquire(), TAG, "I2C bus aquire failed"); // Initialize the I2C master using refcounter
+    // i2c_master_init(); // Initialize the I2C master
     ESP_LOGI(TAG, "Initialize GPIO"); // Log GPIO initialization
     gpio_init(); // Initialize GPIO pins
     ESP_LOGI(TAG, "Initialize Touch LCD"); // Log touch LCD initialization
@@ -176,6 +178,8 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init()
 #endif
     };
     ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &cbs, NULL)); // Register event callbacks
+
+    i2c_bus_release();  // release i2c bus
 
     return ESP_OK; // Return success 
 }
