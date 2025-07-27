@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "misc/lv_timer.h"
 #include "waveshare_rgb_lcd_port.h"
 
 #include "lvgl_port.h"
@@ -30,11 +31,13 @@ typedef struct {
 
 static QueueHandle_t ui_evt_q; // global
 
+static const char *sample_jpeg_path = "/sdcard/sample.jpg"; //global
+
 static void sd_mount_task(void *arg)
 {
     sd_evt_t evt = { .ok = false};
     esp_err_t ret = storage_mount_sdcard();
-    const char *jpeg_path = "/sdcard/sample.jpg";
+    const char *jpeg_path = sample_jpeg_path;
 
     for (int attempt = 1; attempt <= SD_MOUNT_RETRIES; ++attempt){
         ret = storage_mount_sdcard();
@@ -73,6 +76,16 @@ static void sd_mount_task(void *arg)
     vTaskDelete(NULL);
 }
 
+// static void show_img_cb(lv_timer_t * timer)
+// {
+//     const char *path = (const char *)timer->user_data;
+//     lv_obj_t * img = lv_img_create(lv_scr_act());
+//     lv_img_set_src(img, path);
+//     lv_obj_align(img, LV_ALIGN_CENTER, 0, 60);
+//     lv_timer_del(timer);
+// }
+
+
 void app_main()
 {
     ESP_LOGI(TAG, "Mounting SD card at first");
@@ -107,24 +120,42 @@ void app_main()
     ESP_LOGI(TAG, "waveshare_esp32_s3_rgb_lcd_init() returned %d", ret);
     ret = wavesahre_rgb_lcd_bl_on();
     ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
-    ESP_LOGI(TAG, "LCD initilazed");
 
-    // set UI
-    if (lvgl_port_lock(-1)) {
-        lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
-        lv_label_set_text(label, "Hello Tac!");            // set display text
-        lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
-
-        lv_obj_t *status_lbl;
-
-        status_lbl = lv_label_create(lv_scr_act());
-        lv_label_set_text(status_lbl, sd_result_evt.msg); // display received message
-        lv_color_t c = sd_result_evt.ok ? lv_palette_main(LV_PALETTE_GREEN): lv_palette_main(LV_PALETTE_RED);
-        lv_obj_set_style_text_color(status_lbl, c, 0); // set correspondin color
-        lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
+    // initialize lvgl_port
+    if (lvgl_port_lock(-1)){
+        if(sd_result_evt.ok) {
+            ESP_LOGI(TAG, "creating image object");
+            lv_obj_t *img = lv_img_create(lv_scr_act());
+            lv_img_set_src(img, "S:/sample.jpg");
+            lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+            lvgl_port_unlock();
+        }
 
         lvgl_port_unlock();
     }
+
+    // // set UI
+    // if (lvgl_port_lock(-1)) {
+    //     lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
+    //     lv_label_set_text(label, "Hello Tac!");            // set display text
+    //     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
+    //
+    //     lv_obj_t *status_lbl;
+    //
+    //     status_lbl = lv_label_create(lv_scr_act());
+    //     lv_label_set_text(status_lbl, sd_result_evt.msg); // display received message
+    //     lv_color_t c = sd_result_evt.ok ? lv_palette_main(LV_PALETTE_GREEN): lv_palette_main(LV_PALETTE_RED);
+    //     lv_obj_set_style_text_color(status_lbl, c, 0); // set correspondin color
+    //     lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
+    //
+    //     if(sd_result_evt.ok) {
+    //         lv_timer_t * t = lv_timer_create(show_img_cb, 2000, (void *)sample_jpeg_path);
+    //         lv_timer_set_repeat_count(t, 1);
+    //     }
+    //
+    //
+    //     lvgl_port_unlock();
+    // }
 
     vQueueDelete(ui_evt_q);
     ui_evt_q = NULL;
