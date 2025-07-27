@@ -43,44 +43,44 @@ IRAM_ATTR static void rotate_copy_pixel(const uint16_t *from, uint16_t *to, uint
     int to_index_const = 0;                               // Constant index for destination buffer
 
     switch (rotation) {
-    case 90:
-        to_index_const = (w - x_start - 1) * h;          // Calculate constant index for 90-degree rotation
-        for (int from_y = y_start; from_y < y_end + 1; from_y++) {
-            from_index = from_y * w + x_start;           // Calculate index in the source buffer
-            to_index = to_index_const + from_y;          // Calculate index in the destination buffer
-            for (int from_x = x_start; from_x < x_end + 1; from_x++) {
-                *(to + to_index) = *(from + from_index);  // Copy pixel
-                from_index += 1;                          // Move to the next pixel in the source
-                to_index -= h;                            // Move to the next pixel in the destination
+        case 90:
+            to_index_const = (w - x_start - 1) * h;          // Calculate constant index for 90-degree rotation
+            for (int from_y = y_start; from_y < y_end + 1; from_y++) {
+                from_index = from_y * w + x_start;           // Calculate index in the source buffer
+                to_index = to_index_const + from_y;          // Calculate index in the destination buffer
+                for (int from_x = x_start; from_x < x_end + 1; from_x++) {
+                    *(to + to_index) = *(from + from_index);  // Copy pixel
+                    from_index += 1;                          // Move to the next pixel in the source
+                    to_index -= h;                            // Move to the next pixel in the destination
+                }
             }
-        }
-        break;
-    case 180:
-        to_index_const = h * w - x_start - 1;            // Calculate constant index for 180-degree rotation
-        for (int from_y = y_start; from_y < y_end + 1; from_y++) {
-            from_index = from_y * w + x_start;           // Calculate index in the source buffer
-            to_index = to_index_const - from_y * w;      // Calculate index in the destination buffer
-            for (int from_x = x_start; from_x < x_end + 1; from_x++) {
-                *(to + to_index) = *(from + from_index);  // Copy pixel
-                from_index += 1;                          // Move to the next pixel in the source
-                to_index -= 1;                            // Move to the next pixel in the destination
+            break;
+        case 180:
+            to_index_const = h * w - x_start - 1;            // Calculate constant index for 180-degree rotation
+            for (int from_y = y_start; from_y < y_end + 1; from_y++) {
+                from_index = from_y * w + x_start;           // Calculate index in the source buffer
+                to_index = to_index_const - from_y * w;      // Calculate index in the destination buffer
+                for (int from_x = x_start; from_x < x_end + 1; from_x++) {
+                    *(to + to_index) = *(from + from_index);  // Copy pixel
+                    from_index += 1;                          // Move to the next pixel in the source
+                    to_index -= 1;                            // Move to the next pixel in the destination
+                }
             }
-        }
-        break;
-    case 270:
-        to_index_const = (x_start + 1) * h - 1;          // Calculate constant index for 270-degree rotation
-        for (int from_y = y_start; from_y < y_end + 1; from_y++) {
-            from_index = from_y * w + x_start;           // Calculate index in the source buffer
-            to_index = to_index_const - from_y;          // Calculate index in the destination buffer
-            for (int from_x = x_start; from_x < x_end + 1; from_x++) {
-                *(to + to_index) = *(from + from_index);  // Copy pixel
-                from_index += 1;                          // Move to the next pixel in the source
-                to_index += h;                            // Move to the next pixel in the destination
+            break;
+        case 270:
+            to_index_const = (x_start + 1) * h - 1;          // Calculate constant index for 270-degree rotation
+            for (int from_y = y_start; from_y < y_end + 1; from_y++) {
+                from_index = from_y * w + x_start;           // Calculate index in the source buffer
+                to_index = to_index_const - from_y;          // Calculate index in the destination buffer
+                for (int from_x = x_start; from_x < x_end + 1; from_x++) {
+                    *(to + to_index) = *(from + from_index);  // Copy pixel
+                    from_index += 1;                          // Move to the next pixel in the source
+                    to_index += h;                            // Move to the next pixel in the destination
+                }
             }
-        }
-        break;
-    default:
-        break;                                             // Do nothing for unsupported rotation angles
+            break;
+        default:
+            break;                                             // Do nothing for unsupported rotation angles
     }
 }
 #endif /* EXAMPLE_LVGL_PORT_ROTATION_DEGREE */
@@ -325,7 +325,7 @@ void flush_callback(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color
     const int offsety1 = area->y1; // Start Y coordinate of the area to flush
     const int offsety2 = area->y2; // End Y coordinate of the area to flush
 
-#if EXAMPLE_LVGL_PORT_ROTATION_DEGREE != 0
+    #if EXAMPLE_LVGL_PORT_ROTATION_DEGREE != 0
     void *next_fb = get_next_frame_buffer(panel_handle); // Get the next frame buffer
 
     /* Rotate and copy dirty area from the current LVGL's buffer to the next RGB frame buffer */
@@ -333,7 +333,7 @@ void flush_callback(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color
 
     /* Switch the current RGB frame buffer to `next_fb` */
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, next_fb);
-#else
+    #else
     drv->draw_buf->buf1 = color_map; // Set buffer 1 to color_map
     drv->draw_buf->buf2 = lvgl_port_flush_next_buf; // Set buffer 2 to the next flush buffer
     lvgl_port_flush_next_buf = color_map; // Update the flush next buffer to color_map
@@ -342,7 +342,7 @@ void flush_callback(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color
     esp_lcd_panel_draw_bitmap(panel_handle, offsetx1, offsety1, offsetx2 + 1, offsety2 + 1, color_map);
 
     lvgl_port_rgb_next_buf = color_map; // Update the next RGB buffer
-#endif
+    #endif
 
     lv_disp_flush_ready(drv); // Mark the display flush as complete
 }
@@ -379,50 +379,50 @@ static lv_disp_t *display_init(esp_lcd_panel_handle_t panel_handle)
     int buffer_size = 0; // Size of the buffer
 
     ESP_LOGD(TAG, "Malloc memory for LVGL buffer");
-#if LVGL_PORT_AVOID_TEAR_ENABLE
+    #if LVGL_PORT_AVOID_TEAR_ENABLE
     // To avoid tearing effect, at least two frame buffers are needed: one for LVGL rendering and another for RGB output
     buffer_size = LVGL_PORT_H_RES * LVGL_PORT_V_RES;
-#if (LVGL_PORT_LCD_RGB_BUFFER_NUMS == 3) && (EXAMPLE_LVGL_PORT_ROTATION_DEGREE == 0) && LVGL_PORT_FULL_REFRESH
+    #if (LVGL_PORT_LCD_RGB_BUFFER_NUMS == 3) && (EXAMPLE_LVGL_PORT_ROTATION_DEGREE == 0) && LVGL_PORT_FULL_REFRESH
     // With three buffers and full-refresh, one buffer is always available for rendering
     ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 3, &lvgl_port_rgb_last_buf, &buf1, &buf2));
     lvgl_port_rgb_next_buf = lvgl_port_rgb_last_buf; // Set the next RGB buffer
     lvgl_port_flush_next_buf = buf2; // Set the flush next buffer
-#elif (LVGL_PORT_LCD_RGB_BUFFER_NUMS == 3) && (EXAMPLE_LVGL_PORT_ROTATION_DEGREE != 0)
+    #elif (LVGL_PORT_LCD_RGB_BUFFER_NUMS == 3) && (EXAMPLE_LVGL_PORT_ROTATION_DEGREE != 0)
     // Using three frame buffers, one for LVGL rendering and two for RGB driver (one used for rotation)
     void *fbs[3];
     ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 3, &fbs[0], &fbs[1], &fbs[2]));
     buf1 = fbs[2]; // Set buf1 to the third frame buffer
-#else
+    #else
     ESP_ERROR_CHECK(esp_lcd_rgb_panel_get_frame_buffer(panel_handle, 2, &buf1, &buf2)); // Get two frame buffers
-#endif
-#else
+    #endif
+    #else
     // Normally, for RGB LCD, just one buffer is used for LVGL rendering
     buffer_size = LVGL_PORT_H_RES * LVGL_PORT_BUFFER_HEIGHT; // Calculate buffer size
     buf1 = heap_caps_malloc(buffer_size * sizeof(lv_color_t), LVGL_PORT_BUFFER_MALLOC_CAPS); // Allocate memory
     assert(buf1); // Ensure allocation succeeded
     ESP_LOGI(TAG, "LVGL buffer size: %dKB", buffer_size * sizeof(lv_color_t) / 1024); // Log buffer size
-#endif /* LVGL_PORT_AVOID_TEAR_ENABLE */
+    #endif /* LVGL_PORT_AVOID_TEAR_ENABLE */
 
     // Initialize LVGL draw buffers
     lv_disp_draw_buf_init(&disp_buf, buf1, buf2, buffer_size); // Initialize the draw buffer
 
     ESP_LOGD(TAG, "Register display driver to LVGL");
     lv_disp_drv_init(&disp_drv); // Initialize the display driver
-#if EXAMPLE_LVGL_PORT_ROTATION_90 || EXAMPLE_LVGL_PORT_ROTATION_270
+    #if EXAMPLE_LVGL_PORT_ROTATION_90 || EXAMPLE_LVGL_PORT_ROTATION_270
     disp_drv.hor_res = LVGL_PORT_V_RES; // Set horizontal resolution for rotation
     disp_drv.ver_res = LVGL_PORT_H_RES; // Set vertical resolution for rotation
-#else
+    #else
     disp_drv.hor_res = LVGL_PORT_H_RES; // Set horizontal resolution
     disp_drv.ver_res = LVGL_PORT_V_RES; // Set vertical resolution
-#endif
+    #endif
     disp_drv.flush_cb = flush_callback; // Set the flush callback
     disp_drv.draw_buf = &disp_buf; // Set the draw buffer
     disp_drv.user_data = panel_handle; // Set user data to panel handle
-#if LVGL_PORT_FULL_REFRESH
+    #if LVGL_PORT_FULL_REFRESH
     disp_drv.full_refresh = 1; // Enable full refresh
-#elif LVGL_PORT_DIRECT_MODE
+    #elif LVGL_PORT_DIRECT_MODE
     disp_drv.direct_mode = 1; // Enable direct mode
-#endif
+    #endif
     return lv_disp_drv_register(&disp_drv); // Register the display driver
 }
 
@@ -516,16 +516,16 @@ esp_err_t lvgl_port_init(esp_lcd_panel_handle_t lcd_handle, esp_lcd_touch_handle
         assert(indev); // Ensure the input device initialization was successful
 
         // Set touch panel orientation based on rotation
-#if EXAMPLE_LVGL_PORT_ROTATION_90
+        #if EXAMPLE_LVGL_PORT_ROTATION_90
         esp_lcd_touch_set_swap_xy(tp_handle, true); // Swap X and Y coordinates
         esp_lcd_touch_set_mirror_y(tp_handle, true); // Mirror Y coordinates
-#elif EXAMPLE_LVGL_PORT_ROTATION_180
+        #elif EXAMPLE_LVGL_PORT_ROTATION_180
         esp_lcd_touch_set_mirror_x(tp_handle, true); // Mirror X coordinates
         esp_lcd_touch_set_mirror_y(tp_handle, true); // Mirror Y coordinates
-#elif EXAMPLE_LVGL_PORT_ROTATION_270
+        #elif EXAMPLE_LVGL_PORT_ROTATION_270
         esp_lcd_touch_set_swap_xy(tp_handle, true); // Swap X and Y coordinates
         esp_lcd_touch_set_mirror_x(tp_handle, true); // Mirror X coordinates
-#endif
+        #endif
     }
 
     lvgl_mux = xSemaphoreCreateRecursiveMutex(); // Create a recursive mutex for LVGL
@@ -560,14 +560,14 @@ void lvgl_port_unlock(void)
 bool lvgl_port_notify_rgb_vsync(void)
 {
     BaseType_t need_yield = pdFALSE; // Flag to check if a yield is needed
-#if LVGL_PORT_FULL_REFRESH && (LVGL_PORT_LCD_RGB_BUFFER_NUMS == 3) && (EXAMPLE_LVGL_PORT_ROTATION_DEGREE == 0)
+    #if LVGL_PORT_FULL_REFRESH && (LVGL_PORT_LCD_RGB_BUFFER_NUMS == 3) && (EXAMPLE_LVGL_PORT_ROTATION_DEGREE == 0)
     if (lvgl_port_rgb_next_buf != lvgl_port_rgb_last_buf) {
         lvgl_port_flush_next_buf = lvgl_port_rgb_last_buf; // Set next buffer for flushing
         lvgl_port_rgb_last_buf = lvgl_port_rgb_next_buf; // Update the last buffer
     }
-#elif LVGL_PORT_AVOID_TEAR_ENABLE
+    #elif LVGL_PORT_AVOID_TEAR_ENABLE
     // Notify that the current RGB frame buffer has been transmitted
     xTaskNotifyFromISR(lvgl_task_handle, ULONG_MAX, eNoAction, &need_yield); // Notify the LVGL task
-#endif
+    #endif
     return (need_yield == pdTRUE); // Return whether a yield is needed
 }

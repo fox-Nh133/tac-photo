@@ -72,7 +72,7 @@ void waveshare_esp32_s3_touch_reset()
 #endif
 
 // Initialize RGB LCD
-esp_err_t waveshare_esp32_s3_rgb_lcd_init(esp_lcd_panel_handle_t *out_panel)
+esp_err_t waveshare_esp32_s3_rgb_lcd_init()
 {
     ESP_LOGI(TAG, "Install RGB LCD panel driver"); // Log the start of the RGB LCD panel driver installation
     esp_lcd_panel_handle_t panel_handle = NULL; // Declare a handle for the LCD panel
@@ -133,10 +133,9 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init(esp_lcd_panel_handle_t *out_panel)
     ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle)); // Initialize the LCD panel
 
     esp_lcd_touch_handle_t tp_handle = NULL; // Declare a handle for the touch panel
-#if CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
+    #if CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
     ESP_LOGI(TAG, "Initialize I2C bus"); // Log the initialization of the I2C bus
-    ESP_RETURN_ON_ERROR(i2c_bus_acquire(), TAG, "I2C bus aquire failed"); // Initialize the I2C master using refcounter
-    // i2c_master_init(); // Initialize the I2C master
+    i2c_master_init(); // Initialize the I2C master
     ESP_LOGI(TAG, "Initialize GPIO"); // Log GPIO initialization
     gpio_init(); // Initialize GPIO pins
     ESP_LOGI(TAG, "Initialize Touch LCD"); // Log touch LCD initialization
@@ -165,33 +164,34 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init(esp_lcd_panel_handle_t *out_panel)
         },
     };
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp_handle)); // Create new I2C GT911 touch controller
-#endif // CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
+    #endif // CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
 
     ESP_ERROR_CHECK(lvgl_port_init(panel_handle, tp_handle)); // Initialize LVGL with the panel and touch handles
 
     // Register callbacks for RGB panel events
     esp_lcd_rgb_panel_event_callbacks_t cbs = {
-#if EXAMPLE_RGB_BOUNCE_BUFFER_SIZE > 0
+        #if EXAMPLE_RGB_BOUNCE_BUFFER_SIZE > 0
         .on_bounce_frame_finish = rgb_lcd_on_vsync_event, // Callback for bounce frame finish
-#else
+        #else
         .on_vsync = rgb_lcd_on_vsync_event, // Callback for vertical sync
-#endif
+        #endif
     };
     ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &cbs, NULL)); // Register event callbacks
 
-    i2c_bus_release();  // release i2c bus
-
-    return ESP_OK; // Return success 
+    return ESP_OK; // Return success
 }
 
 /******************************* Turn on the screen backlight **************************************/
 esp_err_t wavesahre_rgb_lcd_bl_on()
 {
-    //Configure CH422G to output mode 
+    esp_err_t ret = i2c_bus_acquire();               // 取得
+    if (ret != ESP_OK) return ret;
+
+    //Configure CH422G to output mode
     uint8_t write_buf = 0x01;
     i2c_master_write_to_device(I2C_MASTER_NUM, 0x24, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 
-    //Pull the backlight pin high to light the screen backlight 
+    //Pull the backlight pin high to light the screen backlight
     write_buf = 0x1E;
     i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
     return ESP_OK;
@@ -200,74 +200,74 @@ esp_err_t wavesahre_rgb_lcd_bl_on()
 /******************************* Turn off the screen backlight **************************************/
 esp_err_t wavesahre_rgb_lcd_bl_off()
 {
-    //Configure CH422G to output mode 
+    //Configure CH422G to output mode
     uint8_t write_buf = 0x01;
     i2c_master_write_to_device(I2C_MASTER_NUM, 0x24, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
 
-    //Turn off the screen backlight by pulling the backlight pin low 
+    //Turn off the screen backlight by pulling the backlight pin low
     write_buf = 0x1A;
     i2c_master_write_to_device(I2C_MASTER_NUM, 0x38, &write_buf, 1, I2C_MASTER_TIMEOUT_MS / portTICK_PERIOD_MS);
     return ESP_OK;
 }
 
 /******************************* Example code **************************************/
-static void draw_event_cb(lv_event_t *e) // Draw event callback function 
+static void draw_event_cb(lv_event_t *e) // Draw event callback function
 {
-    lv_obj_draw_part_dsc_t *dsc = lv_event_get_draw_part_dsc(e); // Get the draw part descriptor 
+    lv_obj_draw_part_dsc_t *dsc = lv_event_get_draw_part_dsc(e); // Get the draw part descriptor
     if (dsc->part == LV_PART_ITEMS)
-    {                                                                 // If drawing chart items 
-        lv_obj_t *obj = lv_event_get_target(e);                       // Get the target object of the event 
-        lv_chart_series_t *ser = lv_chart_get_series_next(obj, NULL); // Get the series of the chart 
-        uint32_t cnt = lv_chart_get_point_count(obj);                 // Get the number of points in the chart 
+    {                                                                 // If drawing chart items
+        lv_obj_t *obj = lv_event_get_target(e);                       // Get the target object of the event
+        lv_chart_series_t *ser = lv_chart_get_series_next(obj, NULL); // Get the series of the chart
+        uint32_t cnt = lv_chart_get_point_count(obj);                 // Get the number of points in the chart
         /* Make older values more transparent */
-        dsc->rect_dsc->bg_opa = (LV_OPA_COVER * dsc->id) / (cnt - 1); // Set opacity based on the index 
+        dsc->rect_dsc->bg_opa = (LV_OPA_COVER * dsc->id) / (cnt - 1); // Set opacity based on the index
 
         /* Make smaller values blue, higher values red  */
-        lv_coord_t *x_array = lv_chart_get_x_array(obj, ser); // Get the X-axis array 
-        lv_coord_t *y_array = lv_chart_get_y_array(obj, ser); // Get the Y-axis array 
+        lv_coord_t *x_array = lv_chart_get_x_array(obj, ser); // Get the X-axis array
+        lv_coord_t *y_array = lv_chart_get_y_array(obj, ser); // Get the Y-axis array
         /* dsc->id is the drawing order, but we need the index of the point being drawn dsc->id  */
-        uint32_t start_point = lv_chart_get_x_start_point(obj, ser); // Get the start point of the chart 
-        uint32_t p_act = (start_point + dsc->id) % cnt;              // Calculate the actual index based on the start point 
-        lv_opa_t x_opa = (x_array[p_act] * LV_OPA_50) / 200;         // Calculate X-axis opacity 
-        lv_opa_t y_opa = (y_array[p_act] * LV_OPA_50) / 1000;        // Calculate Y-axis opacity 
+        uint32_t start_point = lv_chart_get_x_start_point(obj, ser); // Get the start point of the chart
+        uint32_t p_act = (start_point + dsc->id) % cnt;              // Calculate the actual index based on the start point
+        lv_opa_t x_opa = (x_array[p_act] * LV_OPA_50) / 200;         // Calculate X-axis opacity
+        lv_opa_t y_opa = (y_array[p_act] * LV_OPA_50) / 1000;        // Calculate Y-axis opacity
 
-        dsc->rect_dsc->bg_color = lv_color_mix(lv_palette_main(LV_PALETTE_RED), // Mix colors 
+        dsc->rect_dsc->bg_color = lv_color_mix(lv_palette_main(LV_PALETTE_RED), // Mix colors
                                                lv_palette_main(LV_PALETTE_BLUE),
                                                x_opa + y_opa);
     }
 }
 
-static void add_data(lv_timer_t *timer) // Timer callback to add data to the chart 
+static void add_data(lv_timer_t *timer) // Timer callback to add data to the chart
 {
-    lv_obj_t *chart = timer->user_data;                                                                        // Get the chart associated with the timer 
-    lv_chart_set_next_value2(chart, lv_chart_get_series_next(chart, NULL), lv_rand(0, 200), lv_rand(0, 1000)); // Add random data to the chart 
+    lv_obj_t *chart = timer->user_data;                                                                        // Get the chart associated with the timer
+    lv_chart_set_next_value2(chart, lv_chart_get_series_next(chart, NULL), lv_rand(0, 200), lv_rand(0, 1000)); // Add random data to the chart
 }
 
 // This demo UI is adapted from LVGL official example: https://docs.lvgl.io/master/examples.html#scatter-chart
-void example_lvgl_demo_ui() // LVGL demo UI initialization function 
+void example_lvgl_demo_ui() // LVGL demo UI initialization function
 {
-    lv_obj_t *scr = lv_scr_act();                                              // Get the current active screen 
-    lv_obj_t *chart = lv_chart_create(scr);                                    // Create a chart object 
-    lv_obj_set_size(chart, 200, 150);                                          // Set chart size 
-    lv_obj_align(chart, LV_ALIGN_CENTER, 0, 0);                                // Center the chart on the screen 
-    lv_obj_add_event_cb(chart, draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL); // Add draw event callback 
+    lv_obj_t *scr = lv_scr_act();                                              // Get the current active screen
+    lv_obj_t *chart = lv_chart_create(scr);                                    // Create a chart object
+    lv_obj_set_size(chart, 200, 150);                                          // Set chart size
+    lv_obj_align(chart, LV_ALIGN_CENTER, 0, 0);                                // Center the chart on the screen
+    lv_obj_add_event_cb(chart, draw_event_cb, LV_EVENT_DRAW_PART_BEGIN, NULL); // Add draw event callback
     lv_obj_set_style_line_width(chart, 0, LV_PART_ITEMS);                      /* Remove chart lines  */
 
-    lv_chart_set_type(chart, LV_CHART_TYPE_SCATTER); // Set chart type to scatter 
+    lv_chart_set_type(chart, LV_CHART_TYPE_SCATTER); // Set chart type to scatter
 
-    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 5, 5, 5, 1, true, 30);  // Set X-axis ticks 
-    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 6, 5, true, 50); // Set Y-axis ticks 
+    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_X, 5, 5, 5, 1, true, 30);  // Set X-axis ticks
+    lv_chart_set_axis_tick(chart, LV_CHART_AXIS_PRIMARY_Y, 10, 5, 6, 5, true, 50); // Set Y-axis ticks
 
-    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_X, 0, 200);  // Set X-axis range 
-    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 1000); // Set Y-axis range 
+    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_X, 0, 200);  // Set X-axis range
+    lv_chart_set_range(chart, LV_CHART_AXIS_PRIMARY_Y, 0, 1000); // Set Y-axis range
 
-    lv_chart_set_point_count(chart, 50); // Set the number of points in the chart 
+    lv_chart_set_point_count(chart, 50); // Set the number of points in the chart
 
-    lv_chart_series_t *ser = lv_chart_add_series(chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y); // Add a series to the chart 
+    lv_chart_series_t *ser = lv_chart_add_series(chart, lv_palette_main(LV_PALETTE_RED), LV_CHART_AXIS_PRIMARY_Y); // Add a series to the chart
     for (int i = 0; i < 50; i++)
-    {                                                                            // Add random points to the chart 
-        lv_chart_set_next_value2(chart, ser, lv_rand(0, 200), lv_rand(0, 1000)); // Set X and Y values 
+    {                                                                            // Add random points to the chart
+        lv_chart_set_next_value2(chart, ser, lv_rand(0, 200), lv_rand(0, 1000)); // Set X and Y values
     }
 
-    lv_timer_create(add_data, 100, chart); // Create a timer to add new data every 100ms 
+    lv_timer_create(add_data, 100, chart); // Create a timer to add new data every 100ms
 }
