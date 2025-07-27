@@ -23,37 +23,6 @@
 # define SD_MOUNT_RETRIES 3
 # define SD_RETRY_DELAY_MS 1000
 
-// static void sd_mount_task(void *arg)
-// {
-//     esp_err_t ret = storage_mount_sdcard();
-//     const char *jpeg_path = "/sdcard/sample.jpg";
-//
-//     for (int attempt = 1; attempt <= SD_MOUNT_RETRIES; ++attempt){
-//         ret = storage_mount_sdcard();
-//
-//         if (ret == ESP_OK){
-//             ESP_LOGI(TAG, "SD card mounted successfully!");
-//             FILE *f = fopen(jpeg_path, "rb");
-//             if (!f) {
-//                 ESP_LOGW(TAG, "JPEG file not found: %s", jpeg_path);
-//                 return;
-//             }
-//             fclose(f);
-//             ESP_LOGI(TAG, "Found JPEG file: %s", jpeg_path);
-//         } else {
-//             ESP_LOGE(TAG, "SD mount failed (%s)", esp_err_to_name(ret));
-//             if (attempt <SD_MOUNT_RETRIES){
-//                     vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
-//                 }
-//             }
-//
-//         if (ret != ESP_OK){
-//             ESP_LOGE(TAG, "SD card mount failed after %d attempts", attempt);
-//         }
-//     }
-//     vTaskDelete(NULL);
-// }
-
 typedef struct {
     bool ok;
     char msg[48];
@@ -104,21 +73,6 @@ static void sd_mount_task(void *arg)
     vTaskDelete(NULL);
 }
 
-// static lv_obj_t *status_lbl;
-//
-// static void ui_poll_cb(lv_timer_t * t)
-// {
-//     sd_evt_t evt;
-//     while (xQueueReceive(ui_evt_q, &evt, 0) == pdTRUE){
-//         if (lvgl_port_lock(0)) {
-//             lv_label_set_text(status_lbl, evt.msg);
-//             lv_color_t c = evt.ok ? lv_palette_main(LV_PALETTE_GREEN): lv_palette_main(LV_PALETTE_RED);
-//             lv_obj_set_style_text_color(status_lbl, c, 0);
-//             lvgl_port_unlock();
-//         }
-//     }
-// }
-
 void app_main()
 {
     ESP_LOGI(TAG, "Mounting SD card at first");
@@ -149,8 +103,6 @@ void app_main()
     ESP_LOGI(TAG, "SD mount task completed. Result: %s", sd_result_evt.msg);
 
     // initilalize LCD
-    // ESP_ERROR_CHECK(waveshare_esp32_s3_rgb_lcd_init());
-
     esp_err_t ret = waveshare_esp32_s3_rgb_lcd_init();
     ESP_LOGI(TAG, "waveshare_esp32_s3_rgb_lcd_init() returned %d", ret);
     ret = wavesahre_rgb_lcd_bl_on();
@@ -158,16 +110,6 @@ void app_main()
     ESP_LOGI(TAG, "LCD initilazed");
 
     // set UI
-    // if (lvgl_port_lock(-1)) {
-    //     // lv_demo_stress();
-    //     // lv_demo_benchmark();
-    //     // lv_demo_music();
-    //     lv_demo_widgets();
-    //     // example_lvgl_demo_ui();
-    //     // Release the mutex
-    //     lvgl_port_unlock();
-    // }
-
     if (lvgl_port_lock(-1)) {
         lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
         lv_label_set_text(label, "Hello Tac!");            // set display text
@@ -186,71 +128,4 @@ void app_main()
 
     vQueueDelete(ui_evt_q);
     ui_evt_q = NULL;
-
-    // // queue and polling timer
-    // vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
-    //
-    // ui_evt_q = xQueueCreate(2, sizeof(sd_evt_t));
-    // if (ui_evt_q == NULL) {
-    //     ESP_LOGE(TAG, "Failed to create UI event queue!");
-    //     while(1) { vTaskDelay(1); } // 致命的なエラーとして停止
-    // } else {
-    //     ESP_LOGI(TAG, "UI event queue created successfully. Handle: %p", ui_evt_q);
-    // }
-    // lv_timer_create(ui_poll_cb, 100, NULL);
-
-    // // initialize SD card
-    // vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
-    //
-    // for (int attempt = 1; attempt <= SD_MOUNT_RETRIES; ++attempt){
-    //     ESP_LOGI(TAG, "Attempting to mount sd card (attempt %d)", attempt);
-    //     ret = storage_mount_sdcard();
-    //     if (ret == ESP_OK) {
-    //         ESP_LOGI(TAG, "SD card mounted successfully on attempt %d", attempt);
-    //         log_msg = "successfully mounted SD card";
-    //         // check jpeg file existence
-    //         FILE *f = fopen(jpeg_path, "rb");
-    //         if (!f) {
-    //             ESP_LOGW(TAG, "JPEG file not found: %s", jpeg_path);
-    //             log_msg = "JPEG file not found";
-    //             return;
-    //         }
-    //         fclose(f);
-    //         ESP_LOGI(TAG, "Found JPEG file: %s", jpeg_path);
-    //         log_msg = "Found JPEG file";
-    //         break;
-    //     } else {
-    //         ESP_LOGW(TAG, "SD card mount failed on attempt %d", attempt);
-    //         log_msg = "failed to mount SD card";
-    //         if (attempt <SD_MOUNT_RETRIES){
-    //             vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
-    //         }
-    //     }
-    //
-    //     if (ret != ESP_OK){
-    //         ESP_LOGE(TAG, "SD card mount failed after %d attempts", attempt);
-    //         log_msg = "failed to mount SD card";
-    //     }
-    // }
-    //
-    // ESP_LOGI(TAG, "Final status: %s", log_msg);
-    //
-    // // display result
-    // // Lock the mutex due to the LVGL APIs are not thread-safe
-    // if (lvgl_port_lock(-1)) {
-    //     lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
-    //     lv_label_set_text(label, "Hello Tac!");            // set display text
-    //     lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
-    //
-    //     lv_obj_t *status = lv_label_create(lv_scr_act());  // create status in active screen
-    //     lv_label_set_text(status, log_msg);
-    //     lv_obj_align(status, LV_ALIGN_CENTER, 0, 0);
-    //     // lv_demo_stress();
-    //     // lv_demo_benchmark();
-    //     // lv_demo_music();
-    //     // lv_demo_widgets();
-    //     // example_lvgl_demo_ui();
-    //     // Release the mutex
-    //     lvgl_port_unlock();
-    // }
 }
