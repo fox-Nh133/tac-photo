@@ -11,6 +11,7 @@
 
 #include "esp_log.h"
 #include "esp_vfs_fat.h"
+#include "sd_protocol_types.h"
 #include "sdmmc_cmd.h"
 #include "driver/i2c.h"
 
@@ -128,10 +129,11 @@ esp_err_t storage_mount_sdcard()
         .sclk_io_num = PIN_NUM_CLK,  // Set SCLK pin
         .quadwp_io_num = -1,         // Not used
         .quadhd_io_num = -1,         // Not used
-        .max_transfer_sz = 4000,     // Maximum transfer size
+        .max_transfer_sz = 4*1024,     // Maximum transfer size
     };
 
-    // host.max_freq_khz = 10000; // Set maximum frequency to 10MHz
+    host.max_freq_khz = 10000; // Set maximum frequency to 5MHz
+    host.command_timeout_ms = 500;  // extend timeout to 500ms
 
     // Initialize SPI bus
     // at first, free the SPI bus in case it was already initialized
@@ -149,7 +151,6 @@ esp_err_t storage_mount_sdcard()
     ESP_LOGW(TAG, "Mounting filesystem");
     ESP_GOTO_ON_ERROR(esp_vfs_fat_sdspi_mount(mount_point, &host, &slot_config, &mount_config, &card),
                       cleanup, TAG, "esp_vfs_fat_sdspi_mount failed");
-
 
     // Filesystem mounted
     ESP_LOGI(TAG, "Filesystem mounted");
