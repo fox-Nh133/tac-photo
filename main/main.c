@@ -30,6 +30,7 @@ typedef struct {
 } sd_evt_t;
 
 static QueueHandle_t ui_evt_q; // global
+static uint8_t *g_jpeg_buf = NULL; //global
 
 static const char *sample_jpeg_path = "/sdcard/sample.jpg"; //global
 
@@ -74,15 +75,14 @@ static void sd_mount_task(void *arg)
 
     if(evt.ok) {
         size_t img_size = 0;
-        void *buf = NULL;
         FILE *f = fopen("/sdcard/sample.jpg", "rb");
         if (f) {
             fseek(f, 0, SEEK_END);
             img_size = ftell(f);
             fseek(f, 0, SEEK_SET);
 
-            buf = heap_caps_malloc(img_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-            if(buf && fread(buf, 1, img_size, f) == img_size) {
+            g_jpeg_buf = heap_caps_malloc(img_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+            if(g_jpeg_buf && fread(g_jpeg_buf, 1, img_size, f) == img_size) {
                 ESP_LOGI(TAG, "Read %zu bytes OK", img_size);
             } else {
                 ESP_LOGE(TAG, "Read failed at byte %zu", ftell(f));
@@ -98,32 +98,13 @@ static void sd_mount_task(void *arg)
 
 static void show_img_cb(lv_timer_t * timer)
 {
-    const char *path = (const char *)timer->user_data;
-
     esp_err_t ret = wavesahre_rgb_lcd_bl_off();
     ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_off() returned %d", ret);
 
     vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
 
-    size_t img_size = 0;
-    void *buf = NULL;
-    FILE *f = fopen("/sdcard/sample.jpg", "rb");
-    if (f) {
-        fseek(f, 0, SEEK_END);
-        img_size = ftell(f);
-        fseek(f, 0, SEEK_SET);
-
-        buf = heap_caps_malloc(img_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-        if(buf && fread(buf, 1, img_size, f) == img_size) {
-            ESP_LOGI(TAG, "Read %zu bytes OK", img_size);
-        } else {
-            ESP_LOGE(TAG, "Read failed at byte %zu", ftell(f));
-        }
-        fclose(f);
-    }
-
     lv_obj_t * img = lv_img_create(lv_scr_act());
-    lv_img_set_src(img, path);
+    lv_img_set_src(img, g_jpeg_buf);
     lv_obj_align(img, LV_ALIGN_CENTER, 0, 60);
 
     ret = wavesahre_rgb_lcd_bl_on();
@@ -196,7 +177,7 @@ void app_main()
         lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
 
         if(sd_result_evt.ok) {
-            lv_timer_t * t = lv_timer_create(show_img_cb, 2000, (void *)"S:/sample.jpg");
+            lv_timer_t * t = lv_timer_create(show_img_cb, 2000, NULL);
             lv_timer_set_repeat_count(t, 1);
         }
 
