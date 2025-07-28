@@ -149,7 +149,17 @@ void app_main()
     ret = wavesahre_rgb_lcd_bl_on();
     ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
 
-//     // initialize lvgl_port
+    // initialize segment lcd
+    // tm1622_t lcd = {
+    //     .pin_cs = GPIO_NUM_43,
+    //     .pin_wr = GPIO_NUM_44,
+    //     .pin_data = GPIO_NUM_6,
+    // };
+    //
+    // ESP_ERROR_CHECK( tm1622_init(&lcd) );
+    // tm1622_puts(&lcd, "Tac Projcet");・
+
+    //     // initialize lvgl_port
 //     if (lvgl_port_lock(-1)){
 //         if(sd_result_evt.ok) {
 //             ESP_LOGI(TAG, "creating image object");
@@ -161,7 +171,6 @@ void app_main()
 //
 //         lvgl_port_unlock();
 //     }
-
     // set UI
     if (lvgl_port_lock(-1)) {
         lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
