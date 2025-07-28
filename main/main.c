@@ -196,7 +196,7 @@ void app_main()
         lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
 
         if(sd_result_evt.ok) {
-            lv_timer_t * t = lv_timer_create(show_img_cb, 2000, (void *)sample_jpeg_path);
+            lv_timer_t * t = lv_timer_create(show_img_cb, 2000, (void *)"S:/sample.jpg");
             lv_timer_set_repeat_count(t, 1);
         }
 
