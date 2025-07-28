@@ -135,45 +135,72 @@ static void show_img_cb(lv_timer_t * timer)
 
 void app_main()
 {
-    /* ── 1.  LCD を先に初期化 ───────────────────────────── */
+    ESP_LOGI(TAG, "Mounting SD card at first");
+
+    sd_evt_t sd_result_evt;  // the result of sd mounting
+
+    // create UI event queue
+    ui_evt_q = xQueueCreate(1, sizeof(sd_evt_t));
+    if (ui_evt_q == NULL){
+        ESP_LOGE(TAG, "Failed to create UI event queue!");
+        while(1) { vTaskDelay(1); }  // stop process as fatal error
+    } else {
+        ESP_LOGI(TAG, "UI event queue created successfully. Handle: %p", ui_evt_q);
+    }
+
+    // activate SD Mount Task
+    vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
+    xTaskCreatePinnedToCore(sd_mount_task, "sd_mount", 4096,
+                            NULL, 3, NULL, 0);  // core 0
+
+    // wait until sd mount task completion
+    ESP_LOGI(TAG, "Waiting for SD mount task to complete...");
+    if (xQueueReceive(ui_evt_q, &sd_result_evt, portMAX_DELAY) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to receive SD mount result from queue!");
+        while(1) { vTaskDelay(1); } // if this happens, error may happen in sending queue process
+    }
+
+    ESP_LOGI(TAG, "SD mount task completed. Result: %s", sd_result_evt.msg);
+
+    // initilalize LCD
     esp_err_t ret = waveshare_esp32_s3_rgb_lcd_init();
     ESP_LOGI(TAG, "waveshare_esp32_s3_rgb_lcd_init() returned %d", ret);
     ret = wavesahre_rgb_lcd_bl_on();
     ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
 
-    /* ── 2.  UI 用イベントキューを生成 ─────────────────── */
-    ui_evt_q = xQueueCreate(1, sizeof(sd_evt_t));
-    if (!ui_evt_q) {
-        ESP_LOGE(TAG, "Failed to create UI event queue!");
-        abort();                          // ここは致命的
-    }
+//     // initialize lvgl_port
+//     if (lvgl_port_lock(-1)){
+//         if(sd_result_evt.ok) {
+//             ESP_LOGI(TAG, "creating image object");
+//             lv_obj_t *img = lv_img_create(lv_scr_act());
+//             lv_img_set_src(img, "S:/sample.jpg");
+//             lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+//             lvgl_port_unlock();
+//         }
+//
+//         lvgl_port_unlock();
+//     }
 
-    /* ── 3.  SD マウントタスクを起動（コア 0）────────────── */
-    vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));          // LCD 起動安定待ち
-    xTaskCreatePinnedToCore(sd_mount_task, "sd_mount", 4096,
-                            NULL, 3, NULL, 0);
-
-    /* ── 4.  結果を待機 ──────────────────────────────── */
-    sd_evt_t sd_evt;
-    if (xQueueReceive(ui_evt_q, &sd_evt, portMAX_DELAY) != pdTRUE) {
-        ESP_LOGE(TAG, "Failed to receive SD mount result!");
-        abort();
-    }
-    ESP_LOGI(TAG, "SD mount task completed: %s", sd_evt.msg);
-
-    /* ── 5.  UI 描画（例：ステータス／画像）────────────── */
+    // set UI
     if (lvgl_port_lock(-1)) {
-        /* ラベルでステータス表示 */
-        lv_obj_t *lbl = lv_label_create(lv_scr_act());
-        lv_label_set_text(lbl, sd_evt.msg);
-        lv_obj_align(lbl, LV_ALIGN_CENTER, 0, -20);
+        lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
+        lv_label_set_text(label, "Hello Tac!");            // set display text
+        lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
 
-        /* マウント成功なら 2 s 後に画像を表示 */
-        if (sd_evt.ok) {
-            lv_timer_t *t = lv_timer_create(show_img_cb, 2000,
-                                            (void *)"S:/sample.jpg");
+        lv_obj_t *status_lbl;
+
+        status_lbl = lv_label_create(lv_scr_act());
+        lv_label_set_text(status_lbl, sd_result_evt.msg); // display received message
+        lv_color_t c = sd_result_evt.ok ? lv_palette_main(LV_PALETTE_GREEN): lv_palette_main(LV_PALETTE_RED);
+        lv_obj_set_style_text_color(status_lbl, c, 0); // set correspondin color
+        lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
+
+        if(sd_result_evt.ok) {
+            lv_timer_t * t = lv_timer_create(show_img_cb, 2000, (void *)sample_jpeg_path);
             lv_timer_set_repeat_count(t, 1);
         }
+
+
         lvgl_port_unlock();
     }
 
