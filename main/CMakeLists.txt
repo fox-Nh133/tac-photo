@@ -1,5 +1,5 @@
 idf_component_register(
-    SRCS "main.c" "i2c_bus_mgr.c" "lvgl_port.c" "storage_manager.c" "waveshare_rgb_lcd_port.c" "tm1622.c"
+    SRCS "main.c" "i2c_bus_mgr.c" "lvgl_port.c" "storage_manager.c" "waveshare_rgb_lcd_port.c" "tm1622.c" "sample_image.c"
     INCLUDE_DIRS ".")
 
 idf_component_get_property(lvgl_lib lvgl__lvgl COMPONENT_LIB)

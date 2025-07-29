@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+#include "extra/libs/fsdrv/lv_fsdrv.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "freertos/task.h"
@@ -507,6 +508,8 @@ esp_err_t lvgl_port_init(esp_lcd_panel_handle_t lcd_handle, esp_lcd_touch_handle
 {
     lv_init(); // Initialize LVGL
     ESP_ERROR_CHECK(tick_init()); // Initialize the tick timer
+
+    lv_fs_stdio_init(); // Initialize file system driver
 
     lv_disp_t *disp = display_init(lcd_handle); // Initialize the display
     assert(disp); // Ensure the display initialization was successful

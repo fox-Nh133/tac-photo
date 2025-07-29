@@ -13,6 +13,9 @@ IRAM_ATTR static bool rgb_lcd_on_vsync_event(esp_lcd_panel_handle_t panel, const
     return lvgl_port_notify_rgb_vsync();
 }
 
+// export panel hanlde
+static esp_lcd_panel_handle_t s_panel = NULL;
+
 #if CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
 /**
  * @brief I2C master initialization
@@ -75,7 +78,7 @@ void waveshare_esp32_s3_touch_reset()
 esp_err_t waveshare_esp32_s3_rgb_lcd_init()
 {
     ESP_LOGI(TAG, "Install RGB LCD panel driver"); // Log the start of the RGB LCD panel driver installation
-    esp_lcd_panel_handle_t panel_handle = NULL; // Declare a handle for the LCD panel
+    // esp_lcd_panel_handle_t panel_handle = NULL; // Declare a handle for the LCD panel
     esp_lcd_rgb_panel_config_t panel_config = {
         .clk_src = LCD_CLK_SRC_DEFAULT, // Set the clock source for the panel
         .timings =  {
@@ -122,17 +125,22 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init()
             EXAMPLE_LCD_IO_RGB_DATA15,
         },
         .flags = {
-            .fb_in_psram = 1, // Use PSRAM for framebuffer
+            .fb_in_psram = 1, // 1 = Use PSRAM for framebuffer, 0 = Use SRAM for framebuffer
+            // .enable_bounce_buffer = 1,
         },
     };
 
     // Create a new RGB panel with the specified configuration
-    ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &panel_handle));
+    ESP_ERROR_CHECK(esp_lcd_new_rgb_panel(&panel_config, &s_panel));
 
     ESP_LOGI(TAG, "Initialize RGB LCD panel"); // Log the initialization of the RGB LCD panel
-    ESP_ERROR_CHECK(esp_lcd_panel_init(panel_handle)); // Initialize the LCD panel
+    ESP_ERROR_CHECK(esp_lcd_panel_init(s_panel)); // Initialize the LCD panel
 
     esp_lcd_touch_handle_t tp_handle = NULL; // Declare a handle for the touch panel
+
+    esp_err_t ret = i2c_bus_acquire();               // 取得
+    if (ret != ESP_OK) return ret;
+
     #if CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
     ESP_LOGI(TAG, "Initialize I2C bus"); // Log the initialization of the I2C bus
     i2c_master_init(); // Initialize the I2C master
@@ -166,7 +174,7 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init()
     ESP_ERROR_CHECK(esp_lcd_touch_new_i2c_gt911(tp_io_handle, &tp_cfg, &tp_handle)); // Create new I2C GT911 touch controller
     #endif // CONFIG_EXAMPLE_LCD_TOUCH_CONTROLLER_GT911
 
-    ESP_ERROR_CHECK(lvgl_port_init(panel_handle, tp_handle)); // Initialize LVGL with the panel and touch handles
+    ESP_ERROR_CHECK(lvgl_port_init(s_panel, tp_handle)); // Initialize LVGL with the panel and touch handles
 
     // Register callbacks for RGB panel events
     esp_lcd_rgb_panel_event_callbacks_t cbs = {
@@ -176,10 +184,17 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init()
         .on_vsync = rgb_lcd_on_vsync_event, // Callback for vertical sync
         #endif
     };
-    ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(panel_handle, &cbs, NULL)); // Register event callbacks
+    ESP_ERROR_CHECK(esp_lcd_rgb_panel_register_event_callbacks(s_panel, &cbs, NULL)); // Register event callbacks
 
     return ESP_OK; // Return success
 }
+
+/******************************* Return handle **************************************/
+esp_lcd_panel_handle_t waveshare_rgb_lcd_get_panel(void)
+{
+    return s_panel;
+}
+
 
 /******************************* Turn on the screen backlight **************************************/
 esp_err_t wavesahre_rgb_lcd_bl_on()

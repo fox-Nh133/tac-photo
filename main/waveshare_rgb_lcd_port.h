@@ -75,6 +75,9 @@ esp_err_t waveshare_esp32_s3_rgb_lcd_init();
 esp_err_t wavesahre_rgb_lcd_bl_on();
 esp_err_t wavesahre_rgb_lcd_bl_off();
 
+esp_lcd_panel_handle_t waveshare_rgb_lcd_get_panel(void);
+
+
 void example_lvgl_demo_ui();
 
 #endif

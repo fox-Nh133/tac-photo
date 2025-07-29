@@ -5,6 +5,7 @@
  */
 
 #include "core/lv_obj_pos.h"
+#include "esp_lcd_panel_ops.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/idf_additions.h"
 #include "freertos/projdefs.h"
@@ -19,10 +20,13 @@
 #include "lvgl_port.h"
 #include "portmacro.h"
 #include "storage_manager.h"
+#include "widgets/lv_img.h"
 
 
 # define SD_MOUNT_RETRIES 3
 # define SD_RETRY_DELAY_MS 1000
+
+extern const lv_img_dsc_t landscape_sample_1;
 
 typedef struct {
     bool ok;
@@ -30,17 +34,65 @@ typedef struct {
 } sd_evt_t;
 
 static QueueHandle_t ui_evt_q; // global
-static uint8_t *g_jpeg_buf = NULL; //global
 
-static const char *sample_jpeg_path = "/sdcard/sample.jpg"; //global
+static const char *jpeg_path = "/sdcard/sample_2.jpg"; //global
+
+static uint8_t *g_jpeg_buf = NULL; //global
+static size_t g_jpeg_size = 0;
+static lv_img_dsc_t jpeg_raw;
+
+static const char *TAG_IMAGE = "jpeg_decoder";
+
+esp_err_t load_file_to_psram(const char *path,
+                             uint8_t **out_buf,
+                             size_t *out_size)
+{
+    FILE *f = fopen(path, "rb");
+    if (!f) {
+        ESP_LOGE(TAG_IMAGE, "fopen(%s) failed", path);
+        return ESP_FAIL;
+    }
+
+    fseek(f, 0, SEEK_END);
+    long file_size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+
+    if (file_size <= 0) {
+        fclose(f);
+        return ESP_ERR_INVALID_SIZE;
+    }
+
+    /* +1 は LVGL の src_type 判定用セーフティ（終端） */
+    uint8_t *buf = heap_caps_malloc(file_size + 1,
+                                    MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (!buf) {
+        fclose(f);
+        return ESP_ERR_NO_MEM;
+    }
+
+    size_t rd = fread(buf, 1, file_size, f);
+    fclose(f);
+
+    if (rd != file_size) {
+        ESP_LOGE(TAG_IMAGE, "read short (%zu / %ld)", rd, file_size);
+        free(buf);
+        return ESP_FAIL;
+    }
+
+    buf[file_size] = 0;          /* 終端バイトを入れておくと安心 */
+    *out_buf  = buf;
+    *out_size = file_size;
+    ESP_LOGI(TAG_IMAGE, "JPEG %ld bytes loaded to 0x%p", file_size, buf);
+    return ESP_OK;
+}
 
 static void sd_mount_task(void *arg)
 {
     sd_evt_t evt = { .ok = false};
-    esp_err_t ret = storage_mount_sdcard();
-    const char *jpeg_path = sample_jpeg_path;
+    esp_err_t ret;
 
     for (int attempt = 1; attempt <= SD_MOUNT_RETRIES; ++attempt){
+        vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
         ret = storage_mount_sdcard();
         if (ret == ESP_OK) {
             evt.ok = true;
@@ -63,7 +115,6 @@ static void sd_mount_task(void *arg)
         }
         else {
             ESP_LOGE(TAG, "SD mount failed (%s)", esp_err_to_name(ret));
-            vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
         }
     }
 
@@ -73,46 +124,45 @@ static void sd_mount_task(void *arg)
         ESP_LOGE(TAG, "SD card mount failed after %d attempts", SD_MOUNT_RETRIES);
     }
 
-    if(evt.ok) {
-        size_t img_size = 0;
-        FILE *f = fopen("/sdcard/sample.jpg", "rb");
-        if (f) {
-            fseek(f, 0, SEEK_END);
-            img_size = ftell(f);
-            fseek(f, 0, SEEK_SET);
-
-            g_jpeg_buf = heap_caps_malloc(img_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-            if(g_jpeg_buf && fread(g_jpeg_buf, 1, img_size, f) == img_size) {
-                ESP_LOGI(TAG, "Read %zu bytes OK", img_size);
-            } else {
-                ESP_LOGE(TAG, "Read failed at byte %zu", ftell(f));
-            }
-            fclose(f);
+    if (evt.ok) {
+        if (load_file_to_psram(jpeg_path,
+            &g_jpeg_buf, &g_jpeg_size) != ESP_OK) {
+            ESP_LOGE(TAG, "JPEG load failed");
         }
-
     }
+
+    // if (evt.ok) {
+    //     if (load_file_to_psram("/sdcard/sample.jpg", &g_jpeg_buf, &g_jpeg_size) == ESP_OK) {
+    //         evt.ok = true;
+    //         strncpy(evt.msg, "JPEG copied to PSRAM", sizeof(evt.msg));
+    //     } else {
+    //         evt.ok = false;
+    //         strncpy(evt.msg, "JPEG copy failed", sizeof(evt.msg));
+    //     }
+    // }
+
+    // if(evt.ok) {
+    //     size_t img_size = 0;
+    //     FILE *f = fopen("/sdcard/sample.bmp", "rb");
+    //     if (f) {
+    //         fseek(f, 0, SEEK_END);
+    //         img_size = ftell(f);
+    //         fseek(f, 0, SEEK_SET);
+    //
+    //         g_jpeg_buf = heap_caps_malloc(img_size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    //         if(g_jpeg_buf && fread(g_jpeg_buf, 1, img_size, f) == img_size) {
+    //             ESP_LOGI(TAG, "Read %zu bytes OK", img_size);
+    //         } else {
+    //             ESP_LOGE(TAG, "Read failed at byte %zu", ftell(f));
+    //         }
+    //         fclose(f);
+    //     }
+    //
+    // }
 
     xQueueSend(ui_evt_q, &evt, portMAX_DELAY);
     vTaskDelete(NULL);
 }
-
-static void show_img_cb(lv_timer_t * timer)
-{
-    esp_err_t ret = wavesahre_rgb_lcd_bl_off();
-    ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_off() returned %d", ret);
-
-    vTaskDelay(pdMS_TO_TICKS(SD_RETRY_DELAY_MS));
-
-    lv_obj_t * img = lv_img_create(lv_scr_act());
-    lv_img_set_src(img, g_jpeg_buf);
-    lv_obj_align(img, LV_ALIGN_CENTER, 0, 60);
-
-    ret = wavesahre_rgb_lcd_bl_on();
-    ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
-
-    lv_timer_del(timer);
-}
-
 
 void app_main()
 {
@@ -146,8 +196,12 @@ void app_main()
     // initilalize LCD
     esp_err_t ret = waveshare_esp32_s3_rgb_lcd_init();
     ESP_LOGI(TAG, "waveshare_esp32_s3_rgb_lcd_init() returned %d", ret);
-    ret = wavesahre_rgb_lcd_bl_on();
-    ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
+
+    // ret = wavesahre_rgb_lcd_bl_on();
+    // ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
+
+    esp_lcd_panel_handle_t panel_handle =
+    waveshare_rgb_lcd_get_panel();
 
     // initialize segment lcd
     // tm1622_t lcd = {
@@ -159,40 +213,60 @@ void app_main()
     // ESP_ERROR_CHECK( tm1622_init(&lcd) );
     // tm1622_puts(&lcd, "Tac Projcet");・
 
-    //     // initialize lvgl_port
-//     if (lvgl_port_lock(-1)){
-//         if(sd_result_evt.ok) {
-//             ESP_LOGI(TAG, "creating image object");
-//             lv_obj_t *img = lv_img_create(lv_scr_act());
-//             lv_img_set_src(img, "S:/sample.jpg");
-//             lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
-//             lvgl_port_unlock();
-//         }
-//
-//         lvgl_port_unlock();
-//     }
     // set UI
     if (lvgl_port_lock(-1)) {
-        lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
-        lv_label_set_text(label, "Hello Tac!");            // set display text
-        lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
-
-        lv_obj_t *status_lbl;
-
-        status_lbl = lv_label_create(lv_scr_act());
-        lv_label_set_text(status_lbl, sd_result_evt.msg); // display received message
-        lv_color_t c = sd_result_evt.ok ? lv_palette_main(LV_PALETTE_GREEN): lv_palette_main(LV_PALETTE_RED);
-        lv_obj_set_style_text_color(status_lbl, c, 0); // set correspondin color
-        lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
+        // lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
+        // lv_label_set_text(label, "Hello Tac!");            // set display text
+        // lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
+        //
+        // lv_obj_t *status_lbl;
+        //
+        // status_lbl = lv_label_create(lv_scr_act());
+        // lv_label_set_text(status_lbl, sd_result_evt.msg); // display received message
+        // lv_color_t c = sd_result_evt.ok ? lv_palette_main(LV_PALETTE_GREEN): lv_palette_main(LV_PALETTE_RED);
+        // lv_obj_set_style_text_color(status_lbl, c, 0); // set correspondin color
+        // lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
 
         if(sd_result_evt.ok) {
-            lv_timer_t * t = lv_timer_create(show_img_cb, 2000, NULL);
-            lv_timer_set_repeat_count(t, 1);
+
+            jpeg_raw.data       = g_jpeg_buf;
+            jpeg_raw.data_size  = g_jpeg_size;
+            jpeg_raw.header.cf  = LV_IMG_CF_RAW;   // 圧縮データを LVGL に渡す
+            jpeg_raw.header.always_zero = 0;
+            jpeg_raw.header.w   = 800;             // 不明なら 0 でも表示可
+            jpeg_raw.header.h   = 480;
+
+            // esp_lcd_panel_disp_on_off(panel_handle, false);
+            lv_obj_t *img = lv_img_create(lv_scr_act());
+            lv_img_set_src(img, &jpeg_raw);
+            // esp_lcd_panel_disp_on_off(panel_handle, true);
+            lv_obj_align(img, LV_ALIGN_CENTER, 0, 0);
+            // lv_timer_t * t = lv_timer_create(show_img_cb, 2000, NULL);
+            // lv_timer_set_repeat_count(t, 1);
+        } else {
+            lv_obj_t *label = lv_label_create(lv_scr_act());   // create label in active screen
+            lv_label_set_text(label, "Hello Tac!");            // set display text
+            lv_obj_align(label, LV_ALIGN_CENTER, 0, 0);         // locate center
+
+            lv_obj_t *status_lbl;
+
+            status_lbl = lv_label_create(lv_scr_act());
+            lv_label_set_text(status_lbl, sd_result_evt.msg); // display received message
+            lv_color_t c = lv_palette_main(LV_PALETTE_RED);
+            lv_obj_set_style_text_color(status_lbl, c, 0); // set correspondin color
+            lv_obj_align(status_lbl,LV_ALIGN_CENTER, 0, +20);
+
+            lv_obj_t *img = lv_img_create(lv_scr_act());
+            lv_img_set_src(img, &landscape_sample_1); /* & を付ける！ */
+            lv_obj_center(img);
+
         }
-
-
         lvgl_port_unlock();
+
     }
+
+    ret = wavesahre_rgb_lcd_bl_on();
+    ESP_LOGI(TAG, "wavesahre_rgb_lcd_bl_on() returned %d", ret);
 
     vQueueDelete(ui_evt_q);
     ui_evt_q = NULL;
