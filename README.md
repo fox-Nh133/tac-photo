@@ -6,12 +6,6 @@ Tac Photo is a proof-of-concept IoT device that rethinks the user experience of 
 
 Built with **ESP32** and **FreeRTOS**, focused on minimalism, security, and tangibility.
 
-## 🧘 Philosophy
-
-> **"Lateral Thinking with Withered Technology"** — Gunpei Yokoi
-
-We believe smart devices should be quiet. They shouldn't demand your attention with settings menus. Tac Photo separates the **Configuration** (done comfortably on your phone) from the **Appreciation** (done purely on the device).
-
 ## ✨ Features
 
 * **Screenless Configuration:** No buttons, no touch digitizer required. Just tap an NFC card to set it up.
