@@ -38,7 +38,7 @@ The system is designed to be minimal and reproducible.
 
 1.  **Clone the repository:**
     ```bash
-    git clone [https://github.com/your-username/tac-photo.git](https://github.com/your-username/tac-photo.git)
+    git clone [https://github.com/tac-photo-org/tac-photo.git](https://github.com/your-username/tac-photo.git)
     cd tac-photo
     ```
 
